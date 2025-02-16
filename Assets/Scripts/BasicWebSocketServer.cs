@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.Tracing;
-using System.Runtime.CompilerServices;
+using System.IO;
 using UnityEngine;
 using WebSocketSharp;
 using WebSocketSharp.Server;
@@ -18,16 +17,19 @@ public class BasicWebSocketServer : MonoBehaviour
     // Se ejecuta al iniciar la escena.
     void Start()
     {
-        // Crear un servidor WebSocket que escucha en el puerto 7777.
-        wss = new WebSocketServer(7777);
+        if (wss == null || !wss.IsListening)
+        {
+            // Crear un servidor WebSocket que escucha en el puerto 7777.
+            wss = new WebSocketServer(7777);
 
-        // Añadir un servicio en la ruta "/" que utiliza el comportamiento EchoBehavior.
-        wss.AddWebSocketService<EchoBehavior>("/");
+            // Añadir un servicio en la ruta "/" que utiliza el comportamiento EchoBehavior.
+            wss.AddWebSocketService<EchoBehavior>("/");
 
-        // Iniciar el servidor.
-        wss.Start();
+            // Iniciar el servidor.
+            wss.Start();
 
-        Debug.Log("Servidor WebSocket iniciado en ws://127.0.0.1:7777/");
+            Debug.Log("Servidor WebSocket iniciado en ws://127.0.0.1:7777/");
+        }
     }
 
     // Se ejecuta cuando el objeto se destruye (por ejemplo, al cerrar la aplicación o cambiar de escena).
@@ -52,6 +54,7 @@ public class EchoBehavior : WebSocketBehavior
 {
     private string clientId;
     private string clientColor;
+    private string logFilePath = "chat_history.txt";
 
     protected override void OnOpen()
     {
@@ -63,12 +66,14 @@ public class EchoBehavior : WebSocketBehavior
         clientColor = colors[(clientNum - 1) % colors.Length];
         clients[ID] = clientId;
         SendToAll("<color=" + clientColor + ">" + clientId + " se ha conectado.</color>");
+        SaveMessageToFile(clientId + " se ha conectado.");
     }
     
     // Se invoca cuando se recibe un mensaje desde un cliente.
     protected override void OnMessage(MessageEventArgs e)
     {
         SendToAll("<color=" + clientColor + "><b>" + clientId + ":</b></color> " + e.Data);
+        SaveMessageToFile(clientId + ": " + e.Data);
     }
 
     protected override void OnClose(CloseEventArgs e)
@@ -77,11 +82,24 @@ public class EchoBehavior : WebSocketBehavior
         if (clients.ContainsKey(ID))
         {
             SendToAll("<color=" + clientColor + ">" + clientId + " se ha desconectado.</color>");
+            SaveMessageToFile(clientId + " se ha desconectado.");
             clients.Remove(ID);
         }
     }
 
     private void SendToAll(String message) {
         Sessions.Broadcast(message);
+    }
+
+    private void SaveMessageToFile(string message)
+    {
+        try
+        {
+            File.AppendAllText(logFilePath, message + "\n");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError("Error al guardar el mensaje en el historial: " + ex.Message);
+        }
     }
 }
